@@ -1,0 +1,14 @@
+## Interface: 30300
+## Title: MountLeash
+## Version: 0.1
+## Author: Remixed by Xan, Original Petleash by End
+## X-Category: Miscellaneous
+## SavedVariables: MountLeashDB
+## OptionalDeps: Ace3, LibAboutPanel
+
+embeds.xml
+locales.xml
+MountLeash.lua
+Locations.lua
+Broker.lua
+Specializations.lua

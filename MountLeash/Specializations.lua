@@ -1,5 +1,5 @@
-local addon = PetLeash
-local L = LibStub("AceLocale-3.0"):GetLocale("PetLeash")
+local addon = MountLeash
+local L = LibStub("AceLocale-3.0"):GetLocale("MountLeash")
 
 local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 
@@ -21,31 +21,31 @@ function addon:DeleteCustomSpec(specid)
 	wipe(self.db.char.sets.customSpec[specid])
 	self.db.char.sets.customSpec[specid] = nil
 	UpdateCustomSpecConfigTables(self)
-	self:DoLocationCheck(false)
+	self:DoLocationCheck()
 end
 
-function addon:GetSpecPet(ltype, name, spellid)
+function addon:GetSpecMount(ltype, name, spellid)
 	assert(SPEC_TYPES[ltype])
 
-	for i, v in ipairs(self.db.char.sets[ltype][name].pets) do
+	for i, v in ipairs(self.db.char.sets[ltype][name].mounts) do
 		if (spellid == v) then
 			return i
 		end
 	end
 end
 
-function addon:SetSpecPet(ltype, name, spellid, value)
+function addon:SetSpecMount(ltype, name, spellid, value)
 	assert(SPEC_TYPES[ltype])
 
-	local t = self.db.char.sets[ltype][name].pets
-	local iszit = self:GetSpecPet(ltype, name, spellid)
+	local t = self.db.char.sets[ltype][name].mounts
+	local iszit = self:GetSpecMount(ltype, name, spellid)
 	if (value and not iszit) then
 		table.insert(t, spellid)
 	elseif (not value and iszit) then
 		table.remove(t, iszit)
 	end
 
-	self:DoLocationCheck(false)
+	self:DoLocationCheck()
 end
 
 --
@@ -58,26 +58,16 @@ end
 
 -- dirty bits for updating custom specs
 
-local function config_spec_pettoggle_get(info)
-	return info.handler:GetSpecPet(info[#info - 3], info[#info - 2], tonumber(info[#info]))
+local function config_spec_mounttoggle_get(info)
+	return info.handler:GetSpecMount(info[#info - 3], info[#info - 2], tonumber(info[#info]))
 end
 
-local function config_spec_pettoggle_set(info, val)
-	info.handler:SetSpecPet(info[#info - 3], info[#info - 2], tonumber(info[#info]), val)
+local function config_spec_mounttoggle_set(info, val)
+	info.handler:SetSpecMount(info[#info - 3], info[#info - 2], tonumber(info[#info]), val)
 end
 
 local function config_spec_delete(info)
 	info.handler:DeleteCustomSpec(info[#info - 1])
-end
-
-local function config_spec_immediate_set(info, v)
-	assert(SPEC_TYPES[info[#info - 2]])
-	info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].immediate = v
-end
-
-local function config_spec_immediate_get(info)
-	assert(SPEC_TYPES[info[#info - 2]])
-	return info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].immediate
 end
 
 local function config_spec_inherit_set(info, v)
@@ -93,7 +83,7 @@ local function config_spec_inherit_set(info, v)
 		info.handler:UpdateSpecConfigTables()
 	end
 
-	info.handler:DoLocationCheck(false)
+	info.handler:DoLocationCheck()
 end
 
 local function config_spec_inherit_get(info)
@@ -101,7 +91,7 @@ local function config_spec_inherit_get(info)
 	return info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit
 end
 
-local loc_pet_config = {
+local loc_mount_config = {
 	type = "group",
 	name = "",
 	order = 10,
@@ -124,22 +114,22 @@ local loc_inherit_config = {
 	set = function(info, val)
 		assert(SPEC_TYPES[info[#info - 2]])
 		info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit = val
-		info.handler:DoLocationCheck(false)
+		info.handler:DoLocationCheck()
 	end
 }
 
 function UpdateCustomSpecConfigTables(self, nosignal)
-	local pet_args = loc_pet_config.args
-	wipe(pet_args)
+	local mount_args = loc_mount_config.args
+	wipe(mount_args)
 
-	for i = 1, GetNumCompanions("CRITTER") do
-		local _, name, spellid = GetCompanionInfo("CRITTER", i)
+	for i = 1, GetNumCompanions("MOUNT") do
+		local _, name, spellid = GetCompanionInfo("MOUNT", i)
 
-		pet_args[tostring(spellid)] = {
+		mount_args[tostring(spellid)] = {
 			type = "toggle",
 			name = name,
-			get = config_spec_pettoggle_get,
-			set = config_spec_pettoggle_set
+			get = config_spec_mounttoggle_get,
+			set = config_spec_mounttoggle_set
 		}
 	end
 
@@ -162,7 +152,7 @@ function UpdateCustomSpecConfigTables(self, nosignal)
 	end
 
 	if (not nosignal) then
-		AceConfigRegistry:NotifyChange("PetLeash")
+		AceConfigRegistry:NotifyChange("MountLeash")
 	end
 end
 
@@ -172,10 +162,10 @@ function buildConfigSpec(args, key, name, inherit, ctype)
 	end
 
 	if (inherit) then
-		args[key].args.pets = nil
+		args[key].args.mounts = nil
 		args[key].args.inherits = loc_inherit_config
 	else
-		args[key].args.pets = loc_pet_config
+		args[key].args.mounts = loc_mount_config
 		args[key].args.inherits = nil
 	end
 end
@@ -198,18 +188,10 @@ function config_getSpecArgs(name, ctype)
 		args = {
 			deleteMe = deleteMe,
 			enableMe = enableMe,
-			immediate = {
-				type = "toggle",
-				name = L["Immediate"],
-				desc = L["Immediately switch pets upon zone change."],
-				order = 2,
-				set = config_spec_immediate_set,
-				get = config_spec_immediate_get
-			},
 			inherit = {
 				type = "toggle",
 				name = L["Inherits"],
-				desc = L["Use a pet list from another Spec."],
+				desc = L["Use a mount list from another Spec."],
 				order = 2,
 				set = config_spec_inherit_set,
 				get = config_spec_inherit_get,
@@ -232,34 +214,28 @@ function addon:TryInitSpec()
 		return
 	end
 
-	self:HasPet(true) -- not yet called?
+	self:HasMount(true) -- not yet called?
 	self:UpdateSpecConfigTables()
-	self:DoLocationCheck(false)
+	self:DoLocationCheck()
 
 	self.TryInitSpec = function() end
 end
 
 local checkSpec
 
-function addon:DoSpecCheck(allow_immediate)
+function addon:DoSpecCheck()
 	local cur_spec = tostring(SpecializationUtil.GetActiveSpecialization())
 
-	local cur_pet = self:HasPet()
-	if (cur_pet) then
-		-- convert to spell id
-		cur_pet = select(3, GetCompanionInfo("CRITTER", cur_pet))
-	end
-
 	-- custom spec check
-	if (checkSpec(self, "customSpec", cur_spec, cur_pet, allow_immediate)) then
+	if (checkSpec(self, "customSpec", cur_spec)) then
 		return
 	end
 
 	-- nothing doing
-	self.override_pets = {}
+	self.override_mounts = {}
 end
 
-function checkSpec(self, ltype, cur_spec, curpet, allow_immediate)
+function checkSpec(self, ltype, cur_spec)
 	if (not cur_spec or cur_spec == "") then
 		return
 	end
@@ -272,31 +248,14 @@ function checkSpec(self, ltype, cur_spec, curpet, allow_immediate)
 		return
 	end
 
-	local pets = specdata.pets
+	local mounts = specdata.mounts
 	if (specdata.inherit and specdata.inherit ~= true
 			and self.db.char.sets.customSpec[specdata.inherit]) then
-		pets = self.db.char.sets.customSpec[specdata.inherit].pets
+		mounts = self.db.char.sets.customSpec[specdata.inherit].mounts
 	end
 
-	if (specdata and #pets > 0) then
-		self.override_pets = pets
-
-		if (allow_immediate and specdata.immediate) then
-			local i
-			for id, petid in pairs(pets) do
-				if (petid == curpet) then
-					i = id
-					break
-				end
-			end
-
-			if (not i) then
-				-- mark for resummon immediately!
-				self.ready_to_autoswitch = true -- we're abusive.
-				self:StartPetTimer()
-			end
-		end
-
+	if (specdata and #mounts > 0) then
+		self.override_mounts = mounts
 		return true
 	end
 end

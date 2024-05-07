@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="MOUNTLEASH_SUMMON" header="MOUNTLEASH">
+        MountLeash:SummonMount()
+    </Binding>
+	<Binding name="MOUNTLEASH_CONFIG">
+		MountLeash:OpenOptions()
+	</Binding>
+</Bindings>
