@@ -348,10 +348,10 @@ function addon:LoadMounts(updateconfig)
 		end
 
 		if (
-			self.db.char.mount_choice[spellid] == 4 or
-			(self.db.char.mount_choice[spellid] == 3 and IsFlyableArea()) or
-			(self.db.char.mount_choice[spellid] == 2 and not IsFlyableArea())
-		) then
+				self.db.char.mount_choice[spellid] == 4 or
+				(self.db.char.mount_choice[spellid] == 3 and IsFlyableArea()) or
+				(self.db.char.mount_choice[spellid] == 2 and not IsFlyableArea())
+			) then
 			table.insert(self.usable_mounts, spellid)
 		end
 
@@ -489,7 +489,6 @@ function addon:PickMount()
 end
 
 function addon:SummonMount()
-	print(#self.override_mounts)
 	if (CanSummonMount() and #self.usable_mounts > 0) then
 		CallCompanion("MOUNT", self:PickMount())
 	else
