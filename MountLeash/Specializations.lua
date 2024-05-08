@@ -3,7 +3,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale("MountLeash")
 
 local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 
-local SPEC_TYPES = { customSpec = 12222222222222222 }
+local SPEC_TYPES = { customSpec = 1 }
 
 local UpdateCustomSpecConfigTables, config_getSpecArgs, buildConfigSpec
 
@@ -21,31 +21,23 @@ function addon:DeleteCustomSpec(specid)
 	wipe(self.db.char.sets.customSpec[specid])
 	self.db.char.sets.customSpec[specid] = nil
 	UpdateCustomSpecConfigTables(self)
-	self:DoLocationCheck()
+	self:DoSpecCheck()
 end
 
 function addon:GetSpecMount(ltype, name, spellid)
 	assert(SPEC_TYPES[ltype])
 
-	for i, v in ipairs(self.db.char.sets[ltype][name].mounts) do
-		if (spellid == v) then
-			return i
-		end
-	end
+	return self.db.char.sets[ltype][name].mounts[spellid] or 1
 end
 
 function addon:SetSpecMount(ltype, name, spellid, value)
 	assert(SPEC_TYPES[ltype])
-
-	local t = self.db.char.sets[ltype][name].mounts
-	local iszit = self:GetSpecMount(ltype, name, spellid)
-	if (value and not iszit) then
-		table.insert(t, spellid)
-	elseif (not value and iszit) then
-		table.remove(t, iszit)
+	if value > 1 then
+		self.db.char.sets[ltype][name].mounts[spellid] = value
+	else
+		self.db.char.sets[ltype][name].mounts[spellid] = nil
 	end
-
-	self:DoLocationCheck()
+	self:DoSpecCheck()
 end
 
 --
@@ -58,11 +50,11 @@ end
 
 -- dirty bits for updating custom specs
 
-local function config_spec_mounttoggle_get(info)
+local function config_spec_mount_get(info)
 	return info.handler:GetSpecMount(info[#info - 3], info[#info - 2], tonumber(info[#info]))
 end
 
-local function config_spec_mounttoggle_set(info, val)
+local function config_spec_mount_set(info, val)
 	info.handler:SetSpecMount(info[#info - 3], info[#info - 2], tonumber(info[#info]), val)
 end
 
@@ -83,7 +75,7 @@ local function config_spec_inherit_set(info, v)
 		info.handler:UpdateSpecConfigTables()
 	end
 
-	info.handler:DoLocationCheck()
+	info.handler:DoSpecCheck()
 end
 
 local function config_spec_inherit_get(info)
@@ -114,7 +106,7 @@ local loc_inherit_config = {
 	set = function(info, val)
 		assert(SPEC_TYPES[info[#info - 2]])
 		info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit = val
-		info.handler:DoLocationCheck()
+		info.handler:DoSpecCheck()
 	end
 }
 
@@ -126,10 +118,12 @@ function UpdateCustomSpecConfigTables(self, nosignal)
 		local _, name, spellid = GetCompanionInfo("MOUNT", i)
 
 		mount_args[tostring(spellid)] = {
-			type = "toggle",
+			type = "select",
 			name = name,
-			get = config_spec_mounttoggle_get,
-			set = config_spec_mounttoggle_set
+			order = 1,
+			values = addon.MountChoices,
+			get = config_spec_mount_get,
+			set = config_spec_mount_set
 		}
 	end
 
@@ -214,9 +208,8 @@ function addon:TryInitSpec()
 		return
 	end
 
-	self:HasMount(true) -- not yet called?
 	self:UpdateSpecConfigTables()
-	self:DoLocationCheck()
+	self:DoSpecCheck()
 
 	self.TryInitSpec = function() end
 end
@@ -253,9 +246,15 @@ function checkSpec(self, ltype, cur_spec)
 			and self.db.char.sets.customSpec[specdata.inherit]) then
 		mounts = self.db.char.sets.customSpec[specdata.inherit].mounts
 	end
+	
+	wipe(self.override_mounts)
+	for k, v in pairs(mounts) do
+		if (v == 4 or (v == 3 and IsFlyableArea()) or (v == 2 and not IsFlyableArea())) then
+			table.insert(self.override_mounts, k)
+		end
+	end
 
-	if (specdata and #mounts > 0) then
-		self.override_mounts = mounts
+	if (specdata and #self.override_mounts > 0) then
 		return true
 	end
 end

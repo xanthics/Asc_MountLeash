@@ -13,12 +13,9 @@ BINDING_NAME_MOUNTLEASH_CONFIG = L["Open Configuration"]
 local defaults = {
 	profile = {
 		enable = true,
-		enableInBattleground = true,
-		weightedMounts = false
 	},
 	char = {
-		ignore_mounts = {}, -- [spellid] = true, hide.  if false, don't hide
-		weights = {}, -- [spellid] = num (if nil default is 1)
+		mount_choice = {}, -- [spellid] = num (if nil default is 1)
 
 		sets = {
 			-- locations
@@ -52,9 +49,6 @@ local defaults = {
 
 -- config
 
-local function config_toggle_get(info) return addon.db.profile[info[#info]] end
-local function config_toggle_set(info, v) addon.db.profile[info[#info]] = v end
-
 local options = {
 	name = "MountLeash",
 	handler = MountLeash,
@@ -70,14 +64,7 @@ local options = {
 					type = "group",
 					order = 10,
 					args = {
-						enableInBattleground = {
-							type = "toggle",
-							name = L["Enable In Battlegrounds/Arena"],
-							order = 12,
-							width = "double",
-							get = config_toggle_get,
-							set = config_toggle_set
-						},
+
 					},
 				},
 			}
@@ -93,7 +80,7 @@ local options = {
 					name = L["Enable All"],
 					order = 1,
 					func = function(info)
-						addon:_Config_MountToggle_SetAll(info, false)
+						addon:_Config_Mount_SetAll(info, 4)
 					end
 				},
 				disableAll = {
@@ -101,20 +88,7 @@ local options = {
 					name = L["Disable All"],
 					order = 2,
 					func = function(info)
-						addon:_Config_MountToggle_SetAll(info, true)
-					end
-				},
-				useWeightedMounts = {
-					-- If we get more pickers, change this to type = "select"
-					type = "toggle",
-					name = L["Weighted Mounts"],
-					order = 3,
-					get = function(info)
-						return addon.db.profile.weightedMounts
-					end,
-					set = function(info, v)
-						addon.db.profile.weightedMounts = v
-						addon:UpdateConfigTables()
+						addon:_Config_Mount_SetAll(info, 1)
 					end
 				},
 				seperator = {
@@ -218,7 +192,7 @@ local options_slashcmd = {
 			order = 1,
 			func = function(info) addon:OpenOptions() end
 		},
-		resummon = {
+		summon = {
 			type = "execute",
 			name = L["Summon Another Mount"],
 			desc = L["Desummon your current mount and summon another mount.  Enable summoning if needed."],
@@ -249,7 +223,7 @@ function addon:OnInitialize()
 	self.optionsFrame = AceConfigDialog:AddToBlizOptions(self.name, self.name, nil, "main")
 	self.optionsFrame.Mounts = AceConfigDialog:AddToBlizOptions(self.name, L["Enabled Mounts"], self.name, "mounts")
 	self.optionsFrame.Locations = AceConfigDialog:AddToBlizOptions(self.name, L["Locations"], self.name, "locations")
-	self.optionsFrame.Locations = AceConfigDialog:AddToBlizOptions(self.name, L["Specs"], self.name, "specs")
+	self.optionsFrame.Specs = AceConfigDialog:AddToBlizOptions(self.name, L["Specs"], self.name, "specs")
 	self.optionsFrame.About = LibStub("LibAboutPanel").new(self.name, self.name)
 	AceConfig:RegisterOptionsTable(self.name .. "SlashCmd", options_slashcmd, { "mountleash", "pl" })
 
@@ -316,11 +290,6 @@ local function HasCompanion(mounttype)
 	return nil
 end
 
-local function IsMounted()
-	return _G.IsMounted()
-	--return HasCompanion("MOUNT")
-end
-
 local function IsMountted(id)
 	if (id) then
 		local _, _, _, _, issum = GetCompanionInfo("MOUNT", id)
@@ -350,13 +319,14 @@ local function CanSummonMount()
 	return
 	-- are we busy?
 		not IsCasting()
+		and not InCombat()
+		and IsOutdoors()
 		and not UnitInVehicle("player")
 		and not UnitIsGhost("player")
 		and not UnitIsDead("player")
 		and not UnitOnTaxi("player")
 		and not IsFlying()
 		and not IsFalling()
-		and GetNumLootItems() == 0
 		and HasFullControl()
 		-- verify we have mounts
 		and GetNumCompanions("MOUNT") > 0
@@ -375,6 +345,14 @@ function addon:LoadMounts(updateconfig)
 
 		if (not name) then
 			return -- mounts not loaded yet?
+		end
+
+		if (
+			self.db.char.mount_choice[spellid] == 4 or
+			(self.db.char.mount_choice[spellid] == 3 and IsFlyableArea()) or
+			(self.db.char.mount_choice[spellid] == 2 and not IsFlyableArea())
+		) then
+			table.insert(self.usable_mounts, spellid)
 		end
 
 		if (not self.mount_map[spellid]) then
@@ -397,39 +375,28 @@ function addon:OnProfileChange()
 	self:LoadMounts()
 end
 
-local L_WeightValues = { "|cffff0000" .. L["Never"] .. "|r",
-	"|cffff6600" .. L["Hardly Ever"] .. "|r",
-	"|cffff9900" .. L["Rarely"] .. "|r",
-	"|cffddff00" .. L["Occasionally"] .. "|r",
-	"|cff99ff00" .. L["Sometimes"] .. "|r",
-	"|cff00ff00" .. L["Often"] .. "|r" }
+addon.MountChoices = {
+	"|cffff0000" .. L["Disable"] .. "|r",
+	"|cffe5aa70" .. L["Ground"] .. "|r",
+	"|cff87ceeb" .. L["Flyable"] .. "|r",
+	"|cff7cfc00" .. L["Either"] .. "|r"
+}
 function addon:UpdateConfigTables()
 	local args = options.args.mounts.args.mounts.args
-	local useWeighted = self.db.profile.weightedMounts
 
 	wipe(args)
 
 	for i = 1, GetNumCompanions("MOUNT") do
 		local _, name, spellid = GetCompanionInfo("MOUNT", i)
 
-		if (not useWeighted) then
-			args[tostring(spellid)] = {
-				type = "toggle",
-				name = name,
-				order = 1,
-				get = "Config_MountToggle_Get",
-				set = "Config_MountToggle_Set"
-			}
-		else
-			args[tostring(spellid)] = {
-				type = "select",
-				name = name,
-				order = 1,
-				values = L_WeightValues,
-				get = "Config_MountToggle_Weighted_Get",
-				set = "Config_MountToggle_Weighted_Set"
-			}
-		end
+		args[tostring(spellid)] = {
+			type = "select",
+			name = name,
+			order = 1,
+			values = addon.MountChoices,
+			get = "Config_Mount_Get",
+			set = "Config_Mount_Set"
+		}
 	end
 
 	self:UpdateLocationConfigTables()
@@ -439,42 +406,22 @@ function addon:UpdateConfigTables()
 	AceConfigRegistry:NotifyChange("MountLeash")
 end
 
-function addon:Config_MountToggle_Set(info, v)
-	if (v) then
-		self.db.char.ignore_mounts[tonumber(info[#info])] = false
+function addon:Config_Mount_Set(info, v)
+	if v > 1 then
+		self.db.char.mount_choice[tonumber(info[#info])] = v
 	else
-		self.db.char.ignore_mounts[tonumber(info[#info])] = true
-	end
-
-	self:LoadMounts(false)
-end
-
-function addon:Config_MountToggle_Get(info)
-	return not self.db.char.ignore_mounts[tonumber(info[#info])]
-end
-
-function addon:Config_MountToggle_Weighted_Get(info)
-	local id = tonumber(info[#info])
-	if (not self.db.char.ignore_mounts[id]) then
-		return math.floor((self.db.char.weights[id] or 1) * 5) + 1
-	end
-	return 1
-end
-
-function addon:Config_MountToggle_Weighted_Set(info, v)
-	local id = tonumber(info[#info])
-	if (v == 1) then
-		self.db.char.ignore_mounts[id] = true
-	else
-		self.db.char.ignore_mounts[id] = false
-		self.db.char.weights[id] = (v - 1) / 5
+		self.db.char.mount_choice[tonumber(info[#info])] = nil
 	end
 	self:LoadMounts(false)
 end
 
-function addon:_Config_MountToggle_SetAll(info, v)
+function addon:Config_Mount_Get(info)
+	return self.db.char.mount_choice[tonumber(info[#info])] or 1
+end
+
+function addon:_Config_Mount_SetAll(info, v)
 	for key in pairs(info.options.args.mounts.args.mounts.args) do
-		self.db.char.ignore_mounts[tonumber(key)] = v
+		self.db.char.mount_choice[tonumber(key)] = v
 	end
 	self:LoadMounts(false)
 end
@@ -496,42 +443,25 @@ function addon:COMPANION_LEARNED()
 	self:LoadMounts()
 end
 
-function addon:OnZoneChanged()
-	local curZone = GetZoneText()
-	if self.currentZone ~= curZone then
-		self.currentZone = curZone
-		if MountLeash.db.profile.autoSwitchOnZone then
-			-- mount will be resummoned shortly
-			if (CanSummonMount()) then
-				self:DesummonMount(true)
-			end
-		end
-	end
-end
-
 function addon:OnSpecChanged(curSpec)
 	if self.currentSpec ~= curSpec then
 		self.currentSpec = curSpec
-		-- mount will be resummoned shortly
-		if (CanSummonMount()) then
-			self:DesummonMount(true)
-		end
 	end
 end
 
 function addon:ZONE_CHANGED()
 	self:DoLocationCheck()
-	self:OnZoneChanged()
+	self:LoadMounts(false)
 end
 
 function addon:ZONE_CHANGED_INDOORS()
 	self:DoLocationCheck()
-	self:OnZoneChanged()
+	self:LoadMounts(false)
 end
 
 function addon:ZONE_CHANGED_NEW_AREA()
 	self:DoLocationCheck()
-	self:OnZoneChanged()
+	self:LoadMounts(false)
 end
 
 function addon:ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED(event, spec)
@@ -541,31 +471,7 @@ end
 
 function addon:PLAYER_UPDATE_RESTING()
 	self:DoLocationCheck()
-end
-
-function addon:IsMountSummonReady()
-	if (not self.db.profile.enable) then
-		return
-	elseif (not self.db.profile.enableInCombat and InCombat()) then
-		return
-	elseif (not self.db.profile.enableInBattleground and InBattlegroundOrArena()) then
-		return
-	elseif (self.db.profile.disableOutsideCities and not IsResting()) then
-		return
-	end
-
-	if (CanSummonMount()) then
-		return true
-	end
-end
-
-function addon:HasMount(nocache)
-	if (nocache) then
-		local mount_id = IsMountted(self.mount_id) or IsMountted()
-		self.mount_id = mount_id
-		return mount_id
-	end
-	return self.mount_id
+	self:LoadMounts(false)
 end
 
 local function pick_flat(self, mountlist)
@@ -574,61 +480,19 @@ local function pick_flat(self, mountlist)
 	return self.mount_map[random_spellid].id
 end
 
-local function pick_weighted(self, countdown)
-	countdown = (countdown or 1000) -- upper bound on tries
-
-	local random_spellid = self.usable_mounts[math.random(#self.usable_mounts)]
-	local weight = self.db.char.weights[random_spellid] or 1
-
-	assert(weight > 0)
-
-	if (math.random() > weight and countdown > 0) then
-		-- retry
-		return pick_weighted(self, countdown - 1)
-	end
-
-	return self.mount_map[random_spellid].id
-end
-
 function addon:PickMount()
 	if (self.override_mounts and #self.override_mounts > 0) then
 		return pick_flat(self, self.override_mounts)
 	end
 
-	if (not self.db.weightedMounts) then
-		return pick_flat(self)
-	else
-		return pick_weighted(self)
-	end
+	return pick_flat(self)
 end
 
 function addon:SummonMount()
-	if (#self.usable_mounts > 0) then
+	print(#self.override_mounts)
+	if (CanSummonMount() and #self.usable_mounts > 0) then
 		CallCompanion("MOUNT", self:PickMount())
-	end
-end
-
-function addon:DesummonMount(disable)
-	DismissCompanion("MOUNT")
-	if (not disable or disable == nil) then
-		addon:EnableSummoning(false)
-	end
-end
-
-function addon:SummonMount()
-	self:EnableSummoning(true)
-
-	self:DesummonMount(true)
-	self:SummonMount()
-end
-
-function addon:ToggleMount()
-	if (IsMountted()) then
-		self:DesummonMount()
 	else
-		self:EnableSummoning(true)
-		if (CanSummonMount()) then
-			self:SummonMount()
-		end
+		print("Unable to summon mount")
 	end
 end

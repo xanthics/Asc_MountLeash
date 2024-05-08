@@ -57,25 +57,16 @@ end
 
 function addon:GetLocationMount(ltype, name, spellid)
 	assert(LOCATION_TYPES[ltype])
-
-	for i, v in ipairs(self.db.char.sets[ltype][name].mounts) do
-		if (spellid == v) then
-			return i
-		end
-	end
+	return self.db.char.sets[ltype][name].mounts[spellid] or 1
 end
 
 function addon:SetLocationMount(ltype, name, spellid, value)
 	assert(LOCATION_TYPES[ltype])
-
-	local t = self.db.char.sets[ltype][name].mounts
-	local iszit = self:GetLocationMount(ltype, name, spellid)
-	if (value and not iszit) then
-		table.insert(t, spellid)
-	elseif (not value and iszit) then
-		table.remove(t, iszit)
+	if value > 1 then
+		self.db.char.sets[ltype][name].mounts[spellid] = value
+	else
+		self.db.char.sets[ltype][name].mounts[spellid] = nil
 	end
-
 	self:DoLocationCheck()
 end
 
@@ -90,11 +81,11 @@ end
 
 -- dirty bits for updating custom locations
 
-local function config_location_mounttoggle_get(info)
+local function config_location_mount_get(info)
 	return info.handler:GetLocationMount(info[#info - 3], info[#info - 2], tonumber(info[#info]))
 end
 
-local function config_location_mounttoggle_set(info, val)
+local function config_location_mount_set(info, val)
 	info.handler:SetLocationMount(info[#info - 3], info[#info - 2], tonumber(info[#info]), val)
 end
 
@@ -168,10 +159,12 @@ function UpdateCustomLocationConfigTables(self, nosignal)
 		local _, name, spellid = GetCompanionInfo("MOUNT", i)
 
 		mount_args[tostring(spellid)] = {
-			type = "toggle",
+			type = "select",
 			name = name,
-			get = config_location_mounttoggle_get,
-			set = config_location_mounttoggle_set
+			order = 1,
+			values = addon.MountChoices,
+			get = config_location_mount_get,
+			set = config_location_mount_set
 		}
 	end
 
@@ -279,7 +272,6 @@ function addon:TryInitLocation()
 		return
 	end
 
-	self:HasMount(true) -- not yet called?
 	self:UpdateLocationConfigTables()
 	self:DoLocationCheck()
 
@@ -334,8 +326,14 @@ function checkZone(self, ltype, zonename)
 		mounts = self.db.char.sets.customLocations[locdata.inherit].mounts
 	end
 
-	if (locdata and #mounts > 0) then
-		self.override_mounts = mounts
+	wipe(self.override_mounts)
+	for k, v in pairs(mounts) do
+		if (v == 4 or (v == 3 and IsFlyableArea()) or (v == 2 and not IsFlyableArea())) then
+			table.insert(self.override_mounts, k)
+		end
+	end
+
+	if (locdata and #self.override_mounts > 0) then
 		return true
 	end
 end
