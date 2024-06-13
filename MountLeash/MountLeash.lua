@@ -13,10 +13,7 @@ BINDING_NAME_MOUNTLEASH_CONFIG = L["Open Configuration"]
 local defaults = {
 	profile = {
 		enable = true,
-	},
-	char = {
 		mount_choice = {}, -- [spellid] = num (if nil default is 1)
-
 		sets = {
 			-- locations
 			customLocations = {
@@ -175,7 +172,8 @@ local options = {
 					plugins = { data = {} }
 				},
 			}
-		}
+		},
+		profiles = nil, -- reserve for later setup
 	},
 }
 
@@ -206,8 +204,18 @@ local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
+local function migrateData()
+	if not MountLeashDB.char then return end
+	for k,v in pairs(MountLeashDB.char) do
+		MountLeashDB.profiles[k] = v
+	end
+	MountLeashDB.char = nil
+	print("MountLeash: Data migrated to profiles")
+end
+
 function addon:OnInitialize()
-	self.db = LibStub("AceDB-3.0"):New("MountLeashDB", defaults)
+	migrateData()
+	self.db = LibStub("AceDB-3.0"):New("MountLeashDB", defaults, true)
 	self.db.RegisterCallback(self, "OnProfileChanged", "OnProfileChange")
 	self.db.RegisterCallback(self, "OnProfileCopied", "OnProfileChange")
 	self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChange")
@@ -217,6 +225,7 @@ function addon:OnInitialize()
 	self.mount_map = {}    -- spellid -> {id,name} (complete)
 
 	self.options = options
+	self.options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	self.options_slashcmd = options_slashcmd
 
 	AceConfig:RegisterOptionsTable(self.name, options)
@@ -224,6 +233,7 @@ function addon:OnInitialize()
 	self.optionsFrame.Mounts = AceConfigDialog:AddToBlizOptions(self.name, L["Enabled Mounts"], self.name, "mounts")
 	self.optionsFrame.Locations = AceConfigDialog:AddToBlizOptions(self.name, L["Locations"], self.name, "locations")
 	self.optionsFrame.Specs = AceConfigDialog:AddToBlizOptions(self.name, L["Specs"], self.name, "specs")
+	self.optionsFrame.Profiles = AceConfigDialog:AddToBlizOptions(self.name, L["Profiles"], self.name, "profiles")
 	self.optionsFrame.About = LibStub("LibAboutPanel").new(self.name, self.name)
 	AceConfig:RegisterOptionsTable(self.name .. "SlashCmd", options_slashcmd, { "mountleash", "pl" })
 
@@ -348,9 +358,9 @@ function addon:LoadMounts(updateconfig)
 		end
 
 		if (
-				self.db.char.mount_choice[spellid] == 4 or
-				(self.db.char.mount_choice[spellid] == 3 and IsFlyableArea()) or
-				(self.db.char.mount_choice[spellid] == 2 and not IsFlyableArea())
+				self.db.profile.mount_choice[spellid] == 4 or
+				(self.db.profile.mount_choice[spellid] == 3 and IsFlyableArea()) or
+				(self.db.profile.mount_choice[spellid] == 2 and not IsFlyableArea())
 			) then
 			table.insert(self.usable_mounts, spellid)
 		end
@@ -408,20 +418,20 @@ end
 
 function addon:Config_Mount_Set(info, v)
 	if v > 1 then
-		self.db.char.mount_choice[tonumber(info[#info])] = v
+		self.db.profile.mount_choice[tonumber(info[#info])] = v
 	else
-		self.db.char.mount_choice[tonumber(info[#info])] = nil
+		self.db.profile.mount_choice[tonumber(info[#info])] = nil
 	end
 	self:LoadMounts(false)
 end
 
 function addon:Config_Mount_Get(info)
-	return self.db.char.mount_choice[tonumber(info[#info])] or 1
+	return self.db.profile.mount_choice[tonumber(info[#info])] or 1
 end
 
 function addon:_Config_Mount_SetAll(info, v)
 	for key in pairs(info.options.args.mounts.args.mounts.args) do
-		self.db.char.mount_choice[tonumber(key)] = v
+		self.db.profile.mount_choice[tonumber(key)] = v
 	end
 	self:LoadMounts(false)
 end

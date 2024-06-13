@@ -94,3 +94,4 @@ L["Disable"] = true
 L["Ground"] = true
 L["Flyable"] = true
 L["Either"] = true
+L["Profiles"] = true

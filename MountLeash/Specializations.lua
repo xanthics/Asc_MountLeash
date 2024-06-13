@@ -12,14 +12,14 @@ function addon:AddCustomSpec(specid)
 		return
 	end
 
-	self.db.char.sets.customSpec[specid].enable = true -- touch
+	self.db.profile.sets.customSpec[specid].enable = true -- touch
 
 	UpdateCustomSpecConfigTables(self)
 end
 
 function addon:DeleteCustomSpec(specid)
-	wipe(self.db.char.sets.customSpec[specid])
-	self.db.char.sets.customSpec[specid] = nil
+	wipe(self.db.profile.sets.customSpec[specid])
+	self.db.profile.sets.customSpec[specid] = nil
 	UpdateCustomSpecConfigTables(self)
 	self:DoSpecCheck()
 end
@@ -27,15 +27,15 @@ end
 function addon:GetSpecMount(ltype, name, spellid)
 	assert(SPEC_TYPES[ltype])
 
-	return self.db.char.sets[ltype][name].mounts[spellid] or 1
+	return self.db.profile.sets[ltype][name].mounts[spellid] or 1
 end
 
 function addon:SetSpecMount(ltype, name, spellid, value)
 	assert(SPEC_TYPES[ltype])
 	if value > 1 then
-		self.db.char.sets[ltype][name].mounts[spellid] = value
+		self.db.profile.sets[ltype][name].mounts[spellid] = value
 	else
-		self.db.char.sets[ltype][name].mounts[spellid] = nil
+		self.db.profile.sets[ltype][name].mounts[spellid] = nil
 	end
 	self:DoSpecCheck()
 end
@@ -64,7 +64,7 @@ end
 
 local function config_spec_inherit_set(info, v)
 	assert(SPEC_TYPES[info[#info - 2]])
-	local loc = info.handler.db.char.sets[info[#info - 2]][info[#info - 1]]
+	local loc = info.handler.db.profile.sets[info[#info - 2]][info[#info - 1]]
 	if (not v) then
 		loc.inherit = false
 		info.handler:UpdateSpecConfigTables()
@@ -80,7 +80,7 @@ end
 
 local function config_spec_inherit_get(info)
 	assert(SPEC_TYPES[info[#info - 2]])
-	return info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit
+	return info.handler.db.profile.sets[info[#info - 2]][info[#info - 1]].inherit
 end
 
 local loc_mount_config = {
@@ -98,14 +98,14 @@ local loc_inherit_config = {
 	get = function(info)
 		assert(SPEC_TYPES[info[#info - 2]])
 
-		local inherit = info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit
+		local inherit = info.handler.db.profile.sets[info[#info - 2]][info[#info - 1]].inherit
 		if (inherit ~= true) then
 			return inherit
 		end
 	end,
 	set = function(info, val)
 		assert(SPEC_TYPES[info[#info - 2]])
-		info.handler.db.char.sets[info[#info - 2]][info[#info - 1]].inherit = val
+		info.handler.db.profile.sets[info[#info - 2]][info[#info - 1]].inherit = val
 		info.handler:DoSpecCheck()
 	end
 }
@@ -131,7 +131,7 @@ function UpdateCustomSpecConfigTables(self, nosignal)
 	wipe(loc_args) -- TODO: check to see if specs is dirty before wiping
 	wipe(loc_inherit_config.values)
 
-	for name, data in pairs(self.db.char.sets.customSpec) do
+	for name, data in pairs(self.db.profile.sets.customSpec) do
 		if (data.enable) then
 			if (not loc_inherit_config.values[name]) then
 				loc_inherit_config.values[name] = name
@@ -140,7 +140,7 @@ function UpdateCustomSpecConfigTables(self, nosignal)
 			buildConfigSpec(loc_args,
 				name,
 				name,
-				self.db.char.sets.customSpec[name].inherit,
+				self.db.profile.sets.customSpec[name].inherit,
 				"customSpec")
 		end
 	end
@@ -234,7 +234,7 @@ function checkSpec(self, ltype, cur_spec)
 	end
 
 	-- don't let AceDB generate an entry for us
-	local specdata = rawget(self.db.char.sets[ltype], cur_spec)
+	local specdata = rawget(self.db.profile.sets[ltype], cur_spec)
 
 	-- make sure entry exists
 	if (not specdata or not specdata.enable) then
@@ -243,10 +243,10 @@ function checkSpec(self, ltype, cur_spec)
 
 	local mounts = specdata.mounts
 	if (specdata.inherit and specdata.inherit ~= true
-			and self.db.char.sets.customSpec[specdata.inherit]) then
-		mounts = self.db.char.sets.customSpec[specdata.inherit].mounts
+			and self.db.profile.sets.customSpec[specdata.inherit]) then
+		mounts = self.db.profile.sets.customSpec[specdata.inherit].mounts
 	end
-	
+
 	wipe(self.override_mounts)
 	for k, v in pairs(mounts) do
 		if (v == 4 or (v == 3 and IsFlyableArea()) or (v == 2 and not IsFlyableArea())) then
