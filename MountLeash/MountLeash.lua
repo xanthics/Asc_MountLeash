@@ -229,12 +229,11 @@ function addon:OnInitialize()
 	self.options_slashcmd = options_slashcmd
 
 	AceConfig:RegisterOptionsTable(self.name, options)
-	self.optionsFrame = AceConfigDialog:AddToBlizOptions(self.name, self.name, nil, "main")
+	self.optionsFrame = LibStub("LibAboutPanel").new(nil, self.name)
 	self.optionsFrame.Mounts = AceConfigDialog:AddToBlizOptions(self.name, L["Enabled Mounts"], self.name, "mounts")
 	self.optionsFrame.Locations = AceConfigDialog:AddToBlizOptions(self.name, L["Locations"], self.name, "locations")
 	self.optionsFrame.Specs = AceConfigDialog:AddToBlizOptions(self.name, L["Specs"], self.name, "specs")
 	self.optionsFrame.Profiles = AceConfigDialog:AddToBlizOptions(self.name, L["Profiles"], self.name, "profiles")
-	self.optionsFrame.About = LibStub("LibAboutPanel").new(self.name, self.name)
 	AceConfig:RegisterOptionsTable(self.name .. "SlashCmd", options_slashcmd, { "mountleash", "pl" })
 
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
