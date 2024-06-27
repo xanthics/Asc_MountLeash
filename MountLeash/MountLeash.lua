@@ -205,7 +205,7 @@ local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
 local function migrateData()
-	if not MountLeashDB.char then return end
+	if not MountLeashDB or not MountLeashDB.char then return end
 	for k,v in pairs(MountLeashDB.char) do
 		MountLeashDB.profiles[k] = v
 	end
