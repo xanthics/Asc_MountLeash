@@ -341,6 +341,8 @@ local function CanSummonMount()
 		and GetNumCompanions("MOUNT") > 0
 		-- gcd check
 		and (not GetCompanionCooldown or GetCompanionCooldown("MOUNT", 1) == 0)
+		-- don't summon if next to Nozdormu, etc
+		and UnitDebuff("player","Dismounted!") == nil
 end
 addon.CanSummonMount = CanSummonMount -- expose (mostly for debugging)
 
