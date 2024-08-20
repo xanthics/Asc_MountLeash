@@ -14,6 +14,10 @@ local defaults = {
 	profile = {
 		enable = true,
 		mount_choice = {}, -- [spellid] = num (if nil default is 1)
+		dismount_ground = false,
+		dismount_air = false,
+		immediate_mount = true,
+		print_unable = false,
 		sets = {
 			-- locations
 			customLocations = {
@@ -46,6 +50,9 @@ local defaults = {
 
 -- config
 
+local function config_toggle_get(info) return addon.db.profile[info[#info]] end
+local function config_toggle_set(info, v) addon.db.profile[info[#info]] = v end
+
 local options = {
 	name = "MountLeash",
 	handler = MountLeash,
@@ -61,7 +68,38 @@ local options = {
 					type = "group",
 					order = 10,
 					args = {
-
+						dismount_ground = {
+							type = "toggle",
+							name = L["Dismount if on Ground"],
+							order = 12,
+							width = "double",
+							get = config_toggle_get,
+							set = config_toggle_set
+						},
+						dismount_air = {
+							type = "toggle",
+							name = L["Dismount if in Air"],
+							order = 12,
+							width = "double",
+							get = config_toggle_get,
+							set = config_toggle_set
+						},
+						immediate_mount = {
+							type = "toggle",
+							name = L["Summon mount if currently mounted"],
+							order = 12,
+							width = "double",
+							get = config_toggle_get,
+							set = config_toggle_set
+						},
+						print_unable = {
+							type = "toggle",
+							name = L["Display output when unable to mount."],
+							order = 12,
+							width = "double",
+							get = config_toggle_get,
+							set = config_toggle_set
+						},
 					},
 				},
 			}
@@ -193,7 +231,6 @@ local options_slashcmd = {
 		summon = {
 			type = "execute",
 			name = L["Summon Another Mount"],
-			desc = L["Desummon your current mount and summon another mount.  Enable summoning if needed."],
 			order = 20,
 			func = function(info) addon:SummonMount() end
 		},
@@ -205,8 +242,8 @@ local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
 local function migrateData()
-	if not MountLeashDB or not MountLeashDB.char then return end
-	for k,v in pairs(MountLeashDB.char) do
+	if not MountLeashDB.char then return end
+	for k, v in pairs(MountLeashDB.char) do
 		MountLeashDB.profiles[k] = v
 	end
 	MountLeashDB.char = nil
@@ -230,6 +267,7 @@ function addon:OnInitialize()
 
 	AceConfig:RegisterOptionsTable(self.name, options)
 	self.optionsFrame = LibStub("LibAboutPanel").new(nil, self.name)
+	self.optionsFrame.General = AceConfigDialog:AddToBlizOptions(self.name, L["General"], self.name, "main")
 	self.optionsFrame.Mounts = AceConfigDialog:AddToBlizOptions(self.name, L["Enabled Mounts"], self.name, "mounts")
 	self.optionsFrame.Locations = AceConfigDialog:AddToBlizOptions(self.name, L["Locations"], self.name, "locations")
 	self.optionsFrame.Specs = AceConfigDialog:AddToBlizOptions(self.name, L["Specs"], self.name, "specs")
@@ -342,7 +380,7 @@ local function CanSummonMount()
 		-- gcd check
 		and (not GetCompanionCooldown or GetCompanionCooldown("MOUNT", 1) == 0)
 		-- don't summon if next to Nozdormu, etc
-		and UnitDebuff("player","Dismounted!") == nil
+		and UnitDebuff("player", "Dismounted!") == nil
 end
 addon.CanSummonMount = CanSummonMount -- expose (mostly for debugging)
 
@@ -500,9 +538,15 @@ function addon:PickMount()
 end
 
 function addon:SummonMount()
-	if (CanSummonMount() and #self.usable_mounts > 0) then
+	local was_mounted = false
+	if IsMounted() then
+		was_mounted = true
+		if self.db.profile.dismount_air and IsFlying() then Dismount() end
+		if self.db.profile.dismount_ground and not IsFlying() then Dismount() end
+	end
+	if (not was_mounted or (was_mounted and self.db.profile.immediate_mount)) and (CanSummonMount() and #self.usable_mounts > 0) then
 		CallCompanion("MOUNT", self:PickMount())
-	else
+	elseif self.db.profile.print_unable then
 		print("Unable to summon mount")
 	end
 end
