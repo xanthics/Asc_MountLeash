@@ -8,6 +8,8 @@ BINDING_HEADER_MOUNTLEASH = "MountLeash"
 BINDING_NAME_MOUNTLEASH_SUMMON = L["Summon Another Mount"]
 BINDING_NAME_MOUNTLEASH_CONFIG = L["Open Configuration"]
 
+-- keep track of total number of mounts so we only change the "Enable Mounts" name when the number of mounts change
+local prevmounts = 0
 
 -- Default DB
 local defaults = {
@@ -389,7 +391,8 @@ addon.CanSummonMount = CanSummonMount -- expose (mostly for debugging)
 function addon:LoadMounts(updateconfig)
 	wipe(self.usable_mounts)
 
-	for i = 1, GetNumCompanions("MOUNT") do
+	local nummounts = GetNumCompanions("MOUNT")
+	for i = 1, nummounts do
 		local _, name, spellid = GetCompanionInfo("MOUNT", i)
 
 		if (not name) then
@@ -409,6 +412,12 @@ function addon:LoadMounts(updateconfig)
 		end
 		self.mount_map[spellid].id = i
 		self.mount_map[spellid].name = name
+	end
+
+	-- Update general mount tab to show total number of mounts
+	if prevmounts ~= nummounts then
+		options.args.mounts.name = L["Enabled Mounts"] .. " ("..nummounts.." "..L["total mounts"]..")"
+		prevmounts = nummounts
 	end
 
 	if (updateconfig == nil or updateconfig) then

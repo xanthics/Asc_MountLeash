@@ -31,6 +31,7 @@ L["Auto Switch when changing maps"] = true
 L["Seconds between switch"] = true
 L["Open Configuration"] = true
 L["Enabled Mounts"] = true
+L["total mounts"] = true
 L["Enable All"] = true
 L["Disable All"] = true
 L["Never"] = true
