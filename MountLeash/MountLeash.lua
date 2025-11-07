@@ -38,6 +38,10 @@ local defaults = {
 					mounts = {} -- {spellid, spellid, ...}
 				}
 			},
+		}
+	},
+	char = {
+		sets = {
 			customSpec = {
 				-- custom locations
 				["*"] = {
@@ -243,18 +247,8 @@ local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
-local function migrateData()
-	if not MountLeashDB.char then return end
-	for k, v in pairs(MountLeashDB.char) do
-		MountLeashDB.profiles[k] = v
-	end
-	MountLeashDB.char = nil
-	print("MountLeash: Data migrated to profiles")
-end
-
 function addon:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("MountLeashDB", defaults, true)
-	migrateData()
 	self.db.RegisterCallback(self, "OnProfileChanged", "OnProfileChange")
 	self.db.RegisterCallback(self, "OnProfileCopied", "OnProfileChange")
 	self.db.RegisterCallback(self, "OnProfileReset", "OnProfileChange")
